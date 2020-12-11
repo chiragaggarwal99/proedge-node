@@ -8,32 +8,42 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 
+function callAPI(tasks){
+    return new Promise((resolve,reject) => {
+        async.parallel(tasks, function(err, obj) {
+            resolve(obj);
+        });
+    });
+}
+
 app.get('/result/:rollnos', async (req,res)=>{
     var rollNos = req.params.rollnos.split(',');
-    var tasks = {};
-    
-    rollNos.forEach(rollNo => {
-        tasks[rollNo] = function(callback) {
-            http.get('http://proedge.me/test.php?rollnumber='+rollNo, function(res) {
-                res.setEncoding('utf8');
-                res.on('data', function (data) { 
-                    callback(null, data);
-                });
-            }).end();
-          }
-    })
-    
-    async.parallel(tasks, function(err, obj) {
-        results = [];
+
+    var results = [];
+
+    for(var i=0;i<rollNos.length;i+=5){
+        var tasks = {};
+        for(var j=i;j<i+5 && j<rollNos.length;j++){
+            tasks[rollNos[j]] = function(callback) {
+                http.get('http://proedge.me/test.php?rollnumber='+rollNos[j], function(res) {
+                    res.setEncoding('utf8');
+                    res.on('data', function (data) { 
+                        callback(null, data);
+                    });
+                }).end();
+            }
+        }
+        var obj = await callAPI(tasks);
         for(var id in obj){
             results.push({
                 rollNo: id,
                 result: obj[id]
             });
         }
-        res.writeHead(200, {"Content-Type": "application/json"});
-        res.end(JSON.stringify(results));
-      });
+    }
+
+    res.writeHead(200, {"Content-Type": "application/json"});
+    res.end(JSON.stringify(results));
 });
 
 app.listen(port, ()=> console.log("Node API started."));
